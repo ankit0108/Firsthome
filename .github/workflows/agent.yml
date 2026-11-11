@@ -1,0 +1,65 @@
+name: Home listing agent
+
+# GitHub schedules run in UTC. These four times are 7am and 6pm Melbourne in both
+# AEDT and AEST; the agent sends once per window and skips the others.
+on:
+  schedule:
+    - cron: "0 20 * * *"  # 7am AEDT
+    - cron: "0 21 * * *"  # 7am AEST
+    - cron: "0 7 * * *"   # 6pm AEDT
+    - cron: "0 8 * * *"   # 6pm AEST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build the report only (no email, state unchanged)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: home-listing-agent
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+      - name: Run agent
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          REPORT_RECIPIENTS: ${{ secrets.REPORT_RECIPIENTS }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python agent.py
+      - name: Show report summary on the run page
+        if: always()
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+      - name: Save listing state
+        if: success()
+        run: |
+          if [ -n "$(git status --porcelain state/)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/
+            git commit -m "Update listing state [skip ci]"
+            git push
+          fi
+      - name: Save report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: out/
+          if-no-files-found: ignore
