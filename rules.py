@@ -3,7 +3,11 @@
 Sections, strictest first: excluded, near_miss, flagged, main. A listing lands
 in the strictest section any rule gives it, and keeps every reason.
 """
+import re
+
 import config
+
+HELP_TO_BUY = re.compile(r"help\s*to\s*buy|\bhtbs?\b|shared\s+equity", re.I)
 
 TYPE_LABEL = {
     "house_and_land_package": "House and land package",
@@ -49,6 +53,7 @@ def merge(row, tags):
         "price_text": row.get("price_text", ""),
         "price_low": row.get("price_low"),
         "price_high": row.get("price_high"),
+        "help_to_buy_price": bool(HELP_TO_BUY.search(row.get("price_text") or "")),
         "lot_m2": _first(row.get("lot_m2_field"), t.get("lot_m2"), row.get("lot_m2_text")),
         "frontage_m": _first(t.get("frontage_m"), row.get("frontage_m")),
         "house_sq": _first(t.get("house_squares"), row.get("house_sq_field"), row.get("house_sq_text")),
@@ -81,6 +86,8 @@ def classify(m):
         excluded.append(f"price over ${cap:,}")
     elif high is not None and high > cap:
         near.append(f"price range runs to ${high:,.0f}")
+    if m.get("help_to_buy_price"):
+        flagged.append("price shown may be a Help to Buy share: check the full price")
 
     lot = m.get("lot_m2")
     if lot is None:
