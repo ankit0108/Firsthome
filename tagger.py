@@ -85,7 +85,8 @@ def ai_tags(row, key, attempts=3):
             headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
             json={
                 "model": config.AI_MODEL,
-                "max_tokens": 400,
+                "max_tokens": 2000,
+                "output_config": {"effort": "low"},
                 "system": SYSTEM,
                 "messages": [{"role": "user", "content": content}],
             },
@@ -99,7 +100,7 @@ def ai_tags(row, key, attempts=3):
     reply = "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text")
     m = re.search(r"\{.*\}", reply, re.S)
     if not m:
-        raise ValueError("no JSON in the reply")
+        raise ValueError(f"no JSON in the reply (stop_reason {r.json().get('stop_reason')})")
     tags = json.loads(m.group(0))
     if tags.get("listing_type") not in TYPES:
         raise ValueError(f"unexpected listing_type {tags.get('listing_type')!r}")
