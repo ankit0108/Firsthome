@@ -93,6 +93,11 @@ class Rules(unittest.TestCase):
         self.assertEqual(self.section(11), "excluded")
         self.assertEqual(self.section(12), "excluded")
 
+    def test_help_to_buy_price_is_flagged(self):
+        section, reasons = tag(item(20, "House", "$486,176 - HTBS", "396m²", "Brand new, 22 squares, double garage"))[1]
+        self.assertEqual(section, "flagged")
+        self.assertTrue(any("Help to Buy" in r for r in reasons))
+
     def test_money_notes(self):
         m, _ = tag(SAMPLE[4])
         self.assertEqual(rules.money_notes(m), ("Duty: no duty", "Build budget left $365,000 for the $10k grant"))
@@ -113,6 +118,9 @@ class Tagging(unittest.TestCase):
                 mock.patch("tagger.requests.post", return_value=fake) as post:
             tags, cache, stats = tagger.tag_all([row], {})
             self.assertEqual((tags[row["id"]]["frontage_m"], stats["ai"]), (12.5, 1))
+            body = post.call_args.kwargs["json"]
+            self.assertGreaterEqual(body["max_tokens"], 2000)  # room for Haiku 5.5's default thinking
+            self.assertEqual(body["output_config"], {"effort": "low"})
             tags, cache, stats = tagger.tag_all([row], cache)
             self.assertEqual((stats["cached"], post.call_count), (1, 1))
 
@@ -208,6 +216,10 @@ class EndToEnd(unittest.TestCase):
 
 
 class Rendering(unittest.TestCase):
+    def test_price_guide_shown_when_text_has_no_number(self):
+        e = {"price_text": "SELLING UNDER THE MARKET VALUE!!", "price_low": 650000.0, "price_high": 650000.0}
+        self.assertEqual(report._price(e), "SELLING UNDER THE MARKET VALUE!! (price guide $650,000)")
+
     def test_html_is_escaped(self):
         e, (section, reasons) = tag(item(1, "House", "<b>$700,000</b>", "350m²", "Brand new 22 squares double garage"))
         self.assertEqual(section, "main")
