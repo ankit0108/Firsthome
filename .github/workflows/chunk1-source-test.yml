@@ -1,0 +1,49 @@
+name: Chunk 1 source test
+
+# Manual run only: Actions tab > "Chunk 1 source test" > Run workflow.
+# The twice-daily schedule comes in chunk 5.
+on:
+  workflow_dispatch:
+    inputs:
+      suburb:
+        description: Suburb to test
+        default: Clyde North
+      postcode:
+        description: Postcode
+        default: "3978"
+      detail_sample:
+        description: Listings re-read with full details (0 to skip)
+        default: "40"
+
+permissions:
+  contents: read
+
+jobs:
+  source-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Run source test
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          SUBURB: ${{ inputs.suburb }}
+          POSTCODE: ${{ inputs.postcode }}
+          DETAIL_SAMPLE: ${{ inputs.detail_sample }}
+        run: python chunk1_source_test.py --suburb "$SUBURB" --postcode "$POSTCODE" --detail-sample "$DETAIL_SAMPLE"
+      - name: Show summary on the run page
+        if: always()
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No summary written." >> "$GITHUB_STEP_SUMMARY"
+      - name: Save results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunk1-results
+          path: out/
+          if-no-files-found: warn
