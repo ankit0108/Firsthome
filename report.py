@@ -20,6 +20,14 @@ def _sort_key(e):
     return (e.get("price_low") is None, e.get("price_low") or 0)
 
 
+def _price(e):
+    text = e.get("price_text") or ""
+    if e.get("price_low") and not any(ch.isdigit() for ch in text):
+        guide = _money(e["price_low"]) if e.get("price_high") in (None, e["price_low"]) else f"{_money(e['price_low'])}-{_money(e['price_high'])}"
+        return f"{text} (price guide {guide})" if text else f"Price guide {guide}"
+    return text or "Price not shown"
+
+
 def _facts(e):
     parts = []
     if e.get("lot_m2"):
@@ -58,7 +66,7 @@ def _card_html(e, today, extra=""):
     lines = [
         f'<div style="padding:10px 0;border-bottom:1px solid #e5e7eb">',
         f'<div style="font-weight:600">{link} <span style="color:#6b7280;font-weight:400">· {esc(e.get("suburb", ""))}</span></div>',
-        f'<div style="font-weight:600">{esc(e.get("price_text") or "Price not shown")}</div>',
+        f'<div style="font-weight:600">{esc(_price(e))}</div>',
     ]
     facts = _facts(e)
     if facts:
@@ -73,7 +81,7 @@ def _card_html(e, today, extra=""):
 
 
 def _card_text(e, today, extra=""):
-    out = [f"- {e.get('address') or 'Address not shown'}, {e.get('suburb', '')}", f"  {e.get('price_text') or 'Price not shown'}"]
+    out = [f"- {e.get('address') or 'Address not shown'}, {e.get('suburb', '')}", f"  {_price(e)}"]
     facts = _facts(e)
     if facts:
         out.append(f"  {facts}")
@@ -165,7 +173,7 @@ def build(current, new_ids, changed, removed, now, label, first_run, scanned, ta
           f"| New since last report | {0 if first_run else len(new)} |", f"| Price changes | {len(changed)} |",
           f"| Removed | {0 if first_run else len(removed)} |", ""]
     if main:
-        md += ["### Matches", ""] + [f"- [{e.get('address') or 'Address not shown'}]({e.get('url')}) · {e.get('price_text')} · {_facts(e)}" for e in main[:30]]
+        md += ["### Matches", ""] + [f"- [{e.get('address') or 'Address not shown'}]({e.get('url')}) · {_price(e)} · {_facts(e)}" for e in main[:30]]
     return {"subject": subject, "html": "\n".join(h), "text": "\n".join(t), "summary": "\n".join(md) + "\n"}
 
 
